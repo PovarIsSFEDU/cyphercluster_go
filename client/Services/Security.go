@@ -14,6 +14,10 @@ type Security struct {
 	reader     io.Reader
 }
 
+func (x Security) PublicKey() *rsa.PublicKey {
+	return x.publicKey
+}
+
 func (x Security) GenerateKeys() Security {
 	x.reader = rand.Reader
 	tmp, err := rsa.GenerateKey(x.reader, 1024)

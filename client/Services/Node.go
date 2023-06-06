@@ -1,9 +1,17 @@
 package Services
 
-import "hash"
+import (
+	"crypto/rsa"
+	"hash"
+)
 
 type Node struct {
-	name string
-	ip   string
-	hash hash.Hash
+	Name      string
+	IP        string
+	Hash      hash.Hash
+	publicKey *rsa.PublicKey
+}
+
+func NewNode(name string, IP string, publicKey *rsa.PublicKey) *Node {
+	return &Node{Name: name, IP: IP, Hash: HashNode256(name, IP), publicKey: publicKey}
 }
