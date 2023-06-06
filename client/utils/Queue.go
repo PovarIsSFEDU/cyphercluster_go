@@ -6,11 +6,11 @@ import (
 )
 
 type Queue struct {
-	Elements []int
+	Elements []Message
 	Size     int
 }
 
-func (q *Queue) Enqueue(elem int) {
+func (q *Queue) Enqueue(elem Message) {
 	if q.GetLength() == q.Size {
 		fmt.Println("Overflow")
 		return
@@ -18,10 +18,10 @@ func (q *Queue) Enqueue(elem int) {
 	q.Elements = append(q.Elements, elem)
 }
 
-func (q *Queue) Dequeue() int {
+func (q *Queue) Dequeue() Message {
 	if q.IsEmpty() {
 		fmt.Println("UnderFlow")
-		return 0
+		return Message{}
 	}
 	element := q.Elements[0]
 	if q.GetLength() == 1 {
@@ -40,9 +40,9 @@ func (q *Queue) IsEmpty() bool {
 	return len(q.Elements) == 0
 }
 
-func (q *Queue) Peek() (int, error) {
+func (q *Queue) Peek() (Message, error) {
 	if q.IsEmpty() {
-		return 0, errors.New("empty queue")
+		return Message{}, errors.New("empty queue")
 	}
 	return q.Elements[0], nil
 }
