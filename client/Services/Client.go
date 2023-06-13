@@ -14,7 +14,11 @@ type Client struct {
 	isParentNow  bool
 }
 
-func initializeClient(name string, ip string, isParent bool) *Client {
+func (x Client) HashedI64() int64 {
+	return HashNodeI64(x.name, x.ip)
+}
+
+func NewClient(name string, ip string, isParent bool) *Client {
 	return &Client{name: name, ip: ip, hash: HashNode256(name, ip), addressTable: make(map[hash.Hash]Node), isParentNow: isParent}
 }
 
@@ -26,7 +30,7 @@ func HashNode256(name string, ip string) hash.Hash {
 	return h
 }
 
-func hashNodeI64(name string, ip string) int64 {
+func HashNodeI64(name string, ip string) int64 {
 	h := fnv.New64a()
 	pre := []byte(name + ip)
 	_, err := h.Write(pre)
