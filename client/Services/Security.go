@@ -30,9 +30,9 @@ func (x Security) PublicKey() *rsa.PublicKey {
 	return x.publicKey
 }
 
-func (x Security) EncryptMessage(message *utils.Message) error {
+func (x Security) EncryptMessage(message *utils.Message, receiverPK *rsa.PublicKey) error {
 	//fmt.Printf("Message is %s \n", message.Data)
-	encrypted, err := rsa.EncryptOAEP(sha256.New(), x.reader, x.publicKey, message.Data, []byte("msg"))
+	encrypted, err := rsa.EncryptOAEP(sha256.New(), x.reader, receiverPK, message.Data, []byte("msg"))
 	if err != nil {
 		print("Error on RSA keygen!")
 		return err

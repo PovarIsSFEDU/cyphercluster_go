@@ -2,6 +2,7 @@ package Server
 
 import (
 	"bytes"
+	"crypto/rsa"
 	"cyphercluster/client/Services"
 	"cyphercluster/client/utils"
 	"encoding/base64"
@@ -10,22 +11,31 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"math/big"
 	"net/http"
+	"os"
 )
 
+type rawMessage struct {
+	Data      string
+	TTL       int32
+	Signature string
+}
+
 func (s *Server) SendMessage(w http.ResponseWriter, req *http.Request) {
-	type rawMessage struct {
+
+	type sendRawMessage struct {
 		Data      string
 		TTL       int32
 		Signature string
+		Receiver  string
 	}
-
 	decoder := json.NewDecoder(req.Body)
 	var m utils.Message
-	var tmp rawMessage
+	var tmp sendRawMessage
 	err := decoder.Decode(&tmp)
 	if err != nil {
-		println("Received message not decoded 1!")
+		println("Sending message not decoded!")
 		fmt.Printf("%v \n", err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
@@ -43,8 +53,11 @@ func (s *Server) SendMessage(w http.ResponseWriter, req *http.Request) {
 	m.Data = []byte(tmp.Data)
 	m.TTL = tmp.TTL
 	m.Signature = []byte(tmp.Signature)
-
-	e := s.security.EncryptMessage(&m)
+	receiver, receiverErr := s.Client.NodeByName(tmp.Receiver)
+	if receiverErr != nil {
+		os.Exit(1)
+	}
+	e := s.security.EncryptMessage(&m, receiver.PublicKey)
 	s.security.SignOutput(&m)
 	if e != nil {
 		fmt.Printf("sign 50 %v \n", err)
@@ -61,7 +74,7 @@ func (s *Server) SendMessage(w http.ResponseWriter, req *http.Request) {
 		//postBody, _ := json.Marshal(m)
 		postBody, _ := json.Marshal(tmp)
 		responseBody := bytes.NewBuffer(postBody)
-		resp, er := http.Post("http://127.0.0.1:8090/receive", "application/json", responseBody)
+		resp, er := http.Post("http://127.0.0.1:8080/receive", "application/json", responseBody)
 		if er != nil {
 			fmt.Printf("An Error Occured %v \n", er)
 		}
@@ -83,11 +96,7 @@ func (s *Server) SendMessage(w http.ResponseWriter, req *http.Request) {
 
 func (s *Server) ReceiveMessage(w http.ResponseWriter, req *http.Request) {
 	//TODO create mechanism to take message from queue
-	type rawMessage struct {
-		Data      string
-		TTL       int32
-		Signature string
-	}
+
 	decoder := json.NewDecoder(req.Body)
 	var t utils.Message
 	var tmp rawMessage
@@ -111,7 +120,14 @@ func (s *Server) ReceiveMessage(w http.ResponseWriter, req *http.Request) {
 	t.TTL = tmp.TTL
 	t.Signature = res2
 	data := t.Data
-	isValid := s.security.VerifyInputSignature(&t, Services.NewNode("test1", "127.0.0.1:8090", s.security.PublicKey()))
+	fmt.Printf("Remote address: %s\n", req.RemoteAddr)
+	fmt.Printf("Remote host: %s\n", req.Host)
+	//Services.NewNode("test1", "127.0.0.1:8080", s.security.PublicKey())
+	requester, nodeErr := s.Client.NodeByIP(req.Host)
+	if nodeErr != nil {
+		fmt.Printf("%v \n", err)
+	}
+	isValid := s.security.VerifyInputSignature(&t, &requester)
 	fmt.Printf("Received message: %s \n", data)
 	fmt.Printf("Signature valid: %t \n", isValid)
 	if isValid {
@@ -123,6 +139,64 @@ func (s *Server) ReceiveMessage(w http.ResponseWriter, req *http.Request) {
 		println("Signatures don't match, skipping...")
 		w.WriteHeader(http.StatusPreconditionFailed)
 	}
+}
+
+func (s *Server) AddToCluster(w http.ResponseWriter, req *http.Request) {
+	type rawNodeInfo struct {
+		Name      string
+		PublicKey string
+	}
+	decoder := json.NewDecoder(req.Body)
+	var n Services.Node
+	var tmp rawNodeInfo
+	err := decoder.Decode(&tmp)
+	if err != nil {
+		println("Received message not decoded!")
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	n.IP = req.Host
+	n.Name = tmp.Name
+
+	bigN, ok := new(big.Int).SetString(tmp.PublicKey, 10)
+	if ok != true {
+		fmt.Println("Bigint decode error!")
+		os.Exit(1)
+	}
+	n.PublicKey = &rsa.PublicKey{E: 65537, N: bigN}
+	s.Client.AddNode(n)
+	w.Write([]byte("Added node successfully."))
+}
+
+func (s *Server) SendAddReq(w http.ResponseWriter, _ *http.Request) {
+	type rawNodeInfo struct {
+		Name      string
+		PublicKey string
+	}
+	var tmp rawNodeInfo
+	tmp.Name = s.Client.Name
+	tmp.PublicKey = s.security.PublicKey().N.String()
+
+	postBody, _ := json.Marshal(tmp)
+	responseBody := bytes.NewBuffer(postBody)
+	resp, er := http.Post("http://127.0.0.1:8080/add", "application/json", responseBody)
+	if er != nil {
+		fmt.Printf("An Error Occured %v \n", er)
+	}
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			fmt.Printf("An Error Occured %v \n", err)
+		}
+	}(resp.Body)
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	sb := string(body)
+	fmt.Printf("Response from adder: %s \n\n", sb)
+	w.Write(body)
 }
 
 func (s *Server) GetInfo(_ http.ResponseWriter, _ *http.Request) {

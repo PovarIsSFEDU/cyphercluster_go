@@ -18,7 +18,7 @@ func (x Security) SignOutput(m *utils.Message) {
 }
 
 func (x Security) VerifyInputSignature(m *utils.Message, sender *Node) bool {
-	err := rsa.VerifyPKCS1v15(sender.publicKey, crypto.SHA256, m.Hash(), []byte(m.Signature))
+	err := rsa.VerifyPKCS1v15(sender.PublicKey, crypto.SHA256, m.Hash(), []byte(m.Signature))
 	if err != nil {
 		println("Signatures don't match!: ", err)
 		return false
